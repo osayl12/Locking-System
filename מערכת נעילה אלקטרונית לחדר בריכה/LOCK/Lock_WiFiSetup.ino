@@ -8,13 +8,17 @@ const char* password = "12345678";
 void setupWiFi() {
   WiFi.begin(ssid, password);
   Serial.print("מתחבר ל-WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
+  unsigned long startAttempt = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 30000) {
     delay(500);
     Serial.print(".");
   }
-  delay(5000);
   Serial.println();
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("חיבור WiFi נכשל! בדוק SSID וסיסמה.");
+    return;
+  }
+  delay(500);
   Serial.print("מחובר. כתובת IP: ");
   Serial.println(WiFi.localIP());
-  delay(500);
 }

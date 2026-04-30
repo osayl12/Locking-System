@@ -12,20 +12,26 @@ const String DEV = "1121";  // מזהה המכשיר
 const String CH = "2";      // ערוץ
 
 // ------------------ הגדרות המולטיפלקסר ------------------
-#define MUX_PIN_A D7   // התאם לפי הצורך כדי למנוע קונפליקטים
+// אזהרה: MUX_PIN_A (D7) זהה ל-FAN_PIN — ודא שזה מכוון או שנה פין אחד
+#define MUX_PIN_A D7
 #define MUX_PIN_B D6
 #define MUX_PIN_C D5
 #define MUX_PIN_IN A0
 
 // ------------------ DHT ומאוורר ------------------
 #define DHT_PIN D4
+// אזהרה: FAN_PIN (D7) חולק עם MUX_PIN_A — החידות רצות בסדר, אך ודא שאין התנגשות חומרה
 #define FAN_PIN D7
 #define DHTTYPE DHT11
 DHT dht(DHT_PIN, DHTTYPE);
 
 // ------------------ LED וכפתורים לחידה 3 ------------------
-const int ledPins[4] = {D1, D2, D3, D4};  // בדוק התנגשות בין הפינים!
-const int buttonPins[4] = {D5, D6, D7, D8}; // ודא שאין קונפליקט עם פיני המולטיפלקסר
+// אזהרה: ledPins[0]=D1 ו-[1]=D2 חולקים עם ECHO_PIN/TRIG_PIN; ledPins[3]=D4 חולק עם DHT_PIN
+// החידות רצות בסדר ולכן אין שימוש בו-זמני, אך שנה פינים אם יש בעיה בחומרה
+const int ledPins[4] = {D1, D2, D3, D4};
+// אזהרה: buttonPins[3]=D8 (GPIO15) — לפין זה יש נגד pull-down מובנה; INPUT_PULLUP לא יעבוד כראוי
+// שנה לפין אחר (למשל D0) אם הכפתור לא מגיב
+const int buttonPins[4] = {D5, D6, D7, D8};
 
 // ------------------ פיני חיישן אולטרסוניק לחידה 4 ------------------
 #define TRIG_PIN D2
@@ -109,12 +115,26 @@ void puzzle2() {
   Serial.println("חידה 2: הורד את הטמפרטורה ב-2°C למשך 2 שניות.");
   pinMode(FAN_PIN, OUTPUT);
   digitalWrite(FAN_PIN, HIGH);
-  float initialTemp = dht.readTemperature();
+
+  float initialTemp = NAN;
+  while (isnan(initialTemp)) {
+    initialTemp = dht.readTemperature();
+    if (isnan(initialTemp)) {
+      Serial.println("שגיאה בקריאת חיישן הטמפרטורה. מנסה שוב...");
+      delay(1000);
+    }
+  }
   Serial.print("טמפרטורה התחלתית: ");
   Serial.println(initialTemp);
+
   unsigned long stableTime = 0;
   while (true) {
     float currentTemp = dht.readTemperature();
+    if (isnan(currentTemp)) {
+      Serial.println("קריאת חיישן נכשלה, מדלג על איטרציה זו.");
+      delay(500);
+      continue;
+    }
     Serial.print("טמפרטורה נוכחית: ");
     Serial.println(currentTemp);
     if (currentTemp <= initialTemp - 2.0) {
@@ -138,63 +158,67 @@ void puzzle2() {
 // חידה 3: רצף נוריות עם כפתורים (מהבהבת 8 פעמים)
 //
 void puzzle3() {
-  Serial.println("חידה 3: עקוב אחר רצף הנוריות המהבהבות.");
   for (int i = 0; i < 4; i++) {
     pinMode(ledPins[i], OUTPUT);
     pinMode(buttonPins[i], INPUT_PULLUP);
   }
-  
-  int sequence[8];
-  randomSeed(analogRead(0));
-  for (int i = 0; i < 8; i++) {
-    sequence[i] = random(0, 4);
-  }
-  
-  Serial.print("הרצף: ");
-  for (int i = 0; i < 8; i++) {
-    Serial.print(sequence[i]);
-    Serial.print(" ");
-    digitalWrite(ledPins[sequence[i]], HIGH);
-    delay(500);
-    digitalWrite(ledPins[sequence[i]], LOW);
-    delay(300);
-  }
-  Serial.println();
-  
-  int userSequence[8];
-  for (int i = 0; i < 8; i++) {
-    Serial.print("מחכה ללחיצת כפתור עבור מיקום ");
-    Serial.println(i + 1);
-    bool pressed = false;
-    while (!pressed) {
-      for (int j = 0; j < 4; j++) {
-        if (digitalRead(buttonPins[j]) == LOW) { // כפתורים במצב LOW פעיל
-          userSequence[i] = j;
-          Serial.print("כפתור ");
-          Serial.print(j);
-          Serial.println(" נלחץ.");
-          delay(500);  // מניעת רעשים (דאונס)
-          pressed = true;
-          break;
+
+  bool solved = false;
+  while (!solved) {
+    Serial.println("חידה 3: עקוב אחר רצף הנוריות המהבהבות.");
+
+    int sequence[8];
+    randomSeed(analogRead(0));
+    for (int i = 0; i < 8; i++) {
+      sequence[i] = random(0, 4);
+    }
+
+    Serial.print("הרצף: ");
+    for (int i = 0; i < 8; i++) {
+      Serial.print(sequence[i]);
+      Serial.print(" ");
+      digitalWrite(ledPins[sequence[i]], HIGH);
+      delay(500);
+      digitalWrite(ledPins[sequence[i]], LOW);
+      delay(300);
+    }
+    Serial.println();
+
+    int userSequence[8];
+    for (int i = 0; i < 8; i++) {
+      Serial.print("מחכה ללחיצת כפתור עבור מיקום ");
+      Serial.println(i + 1);
+      bool pressed = false;
+      while (!pressed) {
+        for (int j = 0; j < 4; j++) {
+          if (digitalRead(buttonPins[j]) == LOW) {
+            userSequence[i] = j;
+            Serial.print("כפתור ");
+            Serial.print(j);
+            Serial.println(" נלחץ.");
+            delay(500);
+            pressed = true;
+            break;
+          }
         }
       }
     }
-  }
-  
-  bool correct = true;
-  for (int i = 0; i < 8; i++) {
-    if (userSequence[i] != sequence[i]) {
-      correct = false;
-      break;
+
+    bool correct = true;
+    for (int i = 0; i < 8; i++) {
+      if (userSequence[i] != sequence[i]) {
+        correct = false;
+        break;
+      }
     }
-  }
-  
-  if (correct) {
-    Serial.println("חידה 3 נפתרה!");
-    sendPuzzleUpdate(3);
-  } else {
-    Serial.println("הרצף שגוי. אתחול מחדש של חידה 3.");
-    puzzle3(); // אתחל מחדש את חידה 3 אם הרצף שגוי.
+
+    if (correct) {
+      Serial.println("חידה 3 נפתרה!");
+      sendPuzzleUpdate(3);
+      solved = true;
+    } else {
+      Serial.println("הרצף שגוי. מנסה שוב.");
+    }
   }
   delay(1000);
 }
