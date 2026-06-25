@@ -1,7 +1,7 @@
 # Electronic Lock System for Pool Room
 ## מערכת נעילה אלקטרונית לחדר בריכה
 
-**Students:** Osail Hamed (208913798) · Walid Areida (204412654)
+**Students:** osayl Hamed (208913798) · Walid Areida (204412654)
 
 ---
 
@@ -132,3 +132,32 @@ The following bugs were fixed after initial upload:
 - The unlock endpoint has no rate limiting — brute-force is theoretically possible over the local network.
 
 These are acceptable trade-offs for a classroom/escape-room project on an isolated hotspot.
+
+---
+
+## Panic Button (panic-button/)
+
+A compact "panic button" reference implementation included in this repository. It demonstrates an ESP8266 device using an Interrupt to signal an immediate alert, communicating with a local WebSocket server and a web UI.
+
+Contents:
+- `panic-button/panic.ino` — ESP8266 sketch (Interrupt, WebSocket client, JSON messages, state machine Idle/Panic/Neutral)
+- `panic-button/server.js` — minimal Node.js WebSocket server that broadcasts device status and accepts a `cancel` command
+- `panic-button/client.html` — web UI (now uses separate `client.css` and `client.js`)
+
+Quick run (local test):
+1. Edit `panic-button/panic.ino`: set `ssid`, `password`, and `websocket_host` to your network and server IP.
+2. Start the WebSocket server:
+
+```bash
+cd panic-button
+npm install ws
+node server.js
+```
+
+3. Serve or open `panic-button/client.html` in a browser on the same network. The page connects to `ws://<host>:8080` by default.
+4. Flash `panic-button/panic.ino` to an ESP8266 and press the physical button to trigger a panic alert. Use the web UI `Cancel Alert` button to clear the alert (only web UI can cancel).
+
+Notes:
+- Communication format: JSON messages with at least `device_id` and `status` fields (e.g. `{ "device_id": "panic_001", "status": "panic" }`).
+- The project uses WebSocket for real-time updates; if you prefer MQTT I can convert the sketch and server.
+
